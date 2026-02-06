@@ -1,0 +1,58 @@
+.app-canvas {
+  width: 1024px;
+  min-height: 515px;
+  background: #fff;
+  color: black;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(7, 80px);
+  grid-template-rows: minmax(123px, 0);
+  row-gap: 52px;
+  column-gap: 20px;
+  align-items: start;
+}
+
+.card-slot {
+  position: relative;
+  width: 80px;
+  height: 123px;
+  border: 1px dashed #d0d0d0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.card-slot--empty-droppable {
+  border-style: dashed;
+}
+
+.card-slot--drop-target {
+  border-color: #4a90d9;
+  border-width: 2px;
+  border-style: solid;
+  box-shadow: 0 0 12px rgba(74, 144, 217, 0.4);
+}
+
+.card {
+  position: absolute;
+  left: 0;
+  width: 80px;
+  height: 123px;
+  border: 1px solid #a3a3a3;
+  border-radius: 8px;
+  background: #fff;
+  transition: box-shadow 0.15s ease;
+
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.card--dragging {
+  opacity: 0.5;
+}
+
+.card--drop-target {
+  border-color: #4a90d9;
+  border-width: 2px;
+  box-shadow: 0 0 12px rgba(74, 144, 217, 0.4);
+}

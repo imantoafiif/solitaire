@@ -46,7 +46,7 @@ function Card({
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef],
+    [draggableRef, droppableRef]
   );
 
   const classNames = [
@@ -196,6 +196,33 @@ function getRankIndex(rank) {
   return RANK_ORDER.indexOf(rank);
 }
 
+const RED_SUITS = ["hearts", "diamonds"];
+const BLACK_SUITS = ["clubs", "spades"];
+
+function getCardColor(suit) {
+  return RED_SUITS.includes(suit) ? "red" : "black";
+}
+
+function canDropOnTableau(tableauCards, cardToDrop) {
+  // Empty slot: only King allowed
+  if (tableauCards.length === 0) {
+    return cardToDrop.rank === "K";
+  }
+
+  const topCard = tableauCards[tableauCards.length - 1];
+
+  // Must be cross-color (red on black, black on red)
+  if (getCardColor(topCard.suit) === getCardColor(cardToDrop.suit)) {
+    return false;
+  }
+
+  // Must be exactly one rank lower than the top card
+  const topRankIndex = getRankIndex(topCard.rank);
+  const dropRankIndex = getRankIndex(cardToDrop.rank);
+
+  return dropRankIndex === topRankIndex - 1;
+}
+
 function canDropOnFoundation(foundationCards, cardToDrop) {
   // If foundation is empty, only Ace can be dropped
   if (foundationCards.length === 0) {
@@ -280,6 +307,14 @@ function App() {
 
         // Check if the card can be dropped on this foundation
         if (!canDropOnFoundation(targetSlot.cards, cardsToMove[0])) {
+          return prevSlots;
+        }
+      }
+
+      // Tableau validation (slots 7-13): cross-color, descending rank, only King on empty
+      const tableauSlots = [7, 8, 9, 10, 11, 12, 13];
+      if (tableauSlots.includes(targetSlotId)) {
+        if (!canDropOnTableau(targetSlot.cards, cardsToMove[0])) {
           return prevSlots;
         }
       }

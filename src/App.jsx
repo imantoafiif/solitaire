@@ -2,9 +2,32 @@ import { useState, useCallback } from "react";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
 import "./App.scss";
 
-function Card({ id, slotId, cardIndex, stackSize, droppable, draggable }) {
+const SUIT_MAP = { hearts: "h", diamonds: "d", clubs: "c", spades: "s" };
+const RANK_MAP = { A: "a", J: "j", Q: "q", K: "k" };
+
+function getCardImage(rank, suit, isFaceUp) {
+  if (!isFaceUp) {
+    return "/face/flip.png";
+  }
+  const suitCode = SUIT_MAP[suit];
+  const rankCode = RANK_MAP[rank] || rank.toLowerCase();
+  return `/face/${suitCode}-${rankCode}.png`;
+}
+
+function Card({
+  id,
+  slotId,
+  cardIndex,
+  stackSize,
+  droppable,
+  draggable,
+  rank,
+  suit,
+  faceUp,
+}) {
   const isTopCard = cardIndex === stackSize - 1;
-  const canDrag = isTopCard && draggable;
+  // Only face up cards that are on top can be dragged
+  const canDrag = isTopCard && draggable && faceUp;
 
   const { ref: draggableRef, isDragging } = useDraggable({
     id: `card-${id}`,
@@ -36,17 +59,13 @@ function Card({ id, slotId, cardIndex, stackSize, droppable, draggable }) {
     .join(" ");
 
   const style = {
-    top: `${slotId > 6 ? cardIndex * 25 : 0}px`,
+    top: `${slotId > 6 ? cardIndex * 25 : cardIndex * 1}px`,
     zIndex: cardIndex,
-    // backgroundImage: `url(${"/face/c-2.png"})`,
+    backgroundImage: `url(${getCardImage(rank, suit, faceUp)})`,
     backgroundSize: "cover",
   };
 
-  return (
-    <div ref={setRefs} className={classNames} style={style}>
-      {/* <p>{id}</p> */}
-    </div>
-  );
+  return <div ref={setRefs} className={classNames} style={style} />;
 }
 
 function CardSlot({ id, cards, droppable, draggable, onClick }) {
@@ -79,6 +98,9 @@ function CardSlot({ id, cards, droppable, draggable, onClick }) {
           stackSize={cards.length}
           droppable={droppable}
           draggable={draggable}
+          rank={card.rank}
+          suit={card.suit}
+          faceUp={card.faceUp}
         />
       ))}
     </div>
@@ -106,7 +128,7 @@ function createDeck() {
   const deck = [];
   for (const suit of SUITS) {
     for (const rank of RANKS) {
-      deck.push({ id: `${rank}-${suit}`, rank, suit });
+      deck.push({ id: `${rank}-${suit}`, rank, suit, faceUp: false });
     }
   }
   // Shuffle the deck
@@ -129,7 +151,13 @@ function initializeSlots() {
 
     if (tableauCounts[index]) {
       // Tableau slots (7-13)
-      cards = deck.slice(cardIndex, cardIndex + tableauCounts[index]);
+      cards = deck
+        .slice(cardIndex, cardIndex + tableauCounts[index])
+        .map((card, i, arr) => ({
+          ...card,
+          // Only the topmost card is face up
+          faceUp: i === arr.length - 1,
+        }));
       cardIndex += tableauCounts[index];
     }
 
@@ -139,8 +167,8 @@ function initializeSlots() {
       isDropTarget: ![0, 1, 2].includes(index),
       isDraggable: index > 0,
     };
-  }).map((slot, _, allSlots) => {
-    // Put remaining cards in slot 0
+  }).map((slot) => {
+    // Put remaining cards in slot 0 (all face down)
     if (slot.id === 0) {
       return { ...slot, cards: deck.slice(cardIndex) };
     }
@@ -161,8 +189,8 @@ function App() {
         cards: [...slot.cards],
       }));
 
-      // Take the top card from slot 0
-      const cardToMove = newSlots[0].cards.pop();
+      // Take the top card from slot 0 and flip it face up
+      const cardToMove = { ...newSlots[0].cards.pop(), faceUp: true };
 
       // Add it to slot 1
       newSlots[1].cards.push(cardToMove);
@@ -193,17 +221,32 @@ function App() {
     setSlots((prevSlots) => {
       const newSlots = prevSlots.map((slot) => ({
         ...slot,
-        cards: [...slot.cards],
+        cards: slot.cards.map((card) => ({ ...card })),
       }));
 
       const sourceSlot = newSlots[sourceSlotId];
       const targetSlot = newSlots[targetSlotId];
 
       // Get cards to move (from the dragged card to the end of the stack)
-      const cardsToMove = sourceSlot.cards.splice(sourceCardIndex);
+      // Cards moved to slots 1, 3-6, or 7-13 should be face up
+      const cardsToMove = sourceSlot.cards
+        .splice(sourceCardIndex)
+        .map((card) => ({ ...card, faceUp: true }));
 
       // Add cards to target slot
       targetSlot.cards.push(...cardsToMove);
+
+      // Flip the new topmost card in source slot if it's a tableau slot (7-13)
+      if (
+        sourceSlotId >= 7 &&
+        sourceSlotId <= 13 &&
+        sourceSlot.cards.length > 0
+      ) {
+        const topCard = sourceSlot.cards[sourceSlot.cards.length - 1];
+        if (!topCard.faceUp) {
+          topCard.faceUp = true;
+        }
+      }
 
       return newSlots;
     });

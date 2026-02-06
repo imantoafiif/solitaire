@@ -37,6 +37,14 @@
   box-shadow: 0 0 12px rgba(74, 144, 217, 0.4);
 }
 
+.card-slot--clickable {
+  cursor: pointer;
+
+  .card {
+    pointer-events: none;
+  }
+}
+
 .card {
   position: absolute;
   left: 0;

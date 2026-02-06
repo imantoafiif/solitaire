@@ -38,16 +38,18 @@ function Card({ id, slotId, cardIndex, stackSize, droppable, draggable }) {
   const style = {
     top: `${slotId > 6 ? cardIndex * 25 : 0}px`,
     zIndex: cardIndex,
+    // backgroundImage: `url(${"/face/c-2.png"})`,
+    backgroundSize: "cover",
   };
 
   return (
     <div ref={setRefs} className={classNames} style={style}>
-      <p>{id}</p>
+      {/* <p>{id}</p> */}
     </div>
   );
 }
 
-function CardSlot({ id, cards, droppable, draggable }) {
+function CardSlot({ id, cards, droppable, draggable, onClick }) {
   const isEmpty = cards.length === 0;
 
   const { ref: droppableRef, isDropTarget } = useDroppable({
@@ -61,12 +63,13 @@ function CardSlot({ id, cards, droppable, draggable }) {
     isEmpty && droppable && "card-slot--empty-droppable",
     !droppable && "card-slot--not-droppable",
     isDropTarget && "card-slot--drop-target",
+    onClick && "card-slot--clickable",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <div ref={droppableRef} className={classNames}>
+    <div ref={droppableRef} className={classNames} onClick={onClick}>
       {cards.map((card, index) => (
         <Card
           key={card.id}
@@ -148,6 +151,26 @@ function initializeSlots() {
 function App() {
   const [slots, setSlots] = useState(initializeSlots);
 
+  const handleDrawCard = useCallback(() => {
+    setSlots((prevSlots) => {
+      const stockSlot = prevSlots[0];
+      if (stockSlot.cards.length === 0) return prevSlots;
+
+      const newSlots = prevSlots.map((slot) => ({
+        ...slot,
+        cards: [...slot.cards],
+      }));
+
+      // Take the top card from slot 0
+      const cardToMove = newSlots[0].cards.pop();
+
+      // Add it to slot 1
+      newSlots[1].cards.push(cardToMove);
+
+      return newSlots;
+    });
+  }, []);
+
   const handleDragEnd = useCallback((event) => {
     const { source, target } = event.operation;
 
@@ -196,6 +219,7 @@ function App() {
             cards={slot.cards}
             droppable={slot.isDropTarget}
             draggable={slot.isDraggable}
+            onClick={slot.id === 0 ? handleDrawCard : undefined}
           />
         ))}
       </div>

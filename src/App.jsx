@@ -82,18 +82,71 @@ function CardSlot({ id, cards, droppable, draggable }) {
   );
 }
 
+const SUITS = ["hearts", "diamonds", "clubs", "spades"];
+const RANKS = [
+  "A",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "J",
+  "Q",
+  "K",
+];
+
+function createDeck() {
+  const deck = [];
+  for (const suit of SUITS) {
+    for (const rank of RANKS) {
+      deck.push({ id: `${rank}-${suit}`, rank, suit });
+    }
+  }
+  // Shuffle the deck
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function initializeSlots() {
+  const deck = createDeck();
+  let cardIndex = 0;
+
+  // Tableau distribution: slot 7 gets 1, slot 8 gets 2, ..., slot 13 gets 7
+  const tableauCounts = { 7: 1, 8: 2, 9: 3, 10: 4, 11: 5, 12: 6, 13: 7 };
+
+  return Array.from({ length: 14 }, (_, index) => {
+    let cards = [];
+
+    if (tableauCounts[index]) {
+      // Tableau slots (7-13)
+      cards = deck.slice(cardIndex, cardIndex + tableauCounts[index]);
+      cardIndex += tableauCounts[index];
+    }
+
+    return {
+      id: index,
+      cards,
+      isDropTarget: ![0, 1, 2].includes(index),
+      isDraggable: index > 0,
+    };
+  }).map((slot, _, allSlots) => {
+    // Put remaining cards in slot 0
+    if (slot.id === 0) {
+      return { ...slot, cards: deck.slice(cardIndex) };
+    }
+    return slot;
+  });
+}
+
 function App() {
-  const [slots, setSlots] = useState(() =>
-    Array.from({ length: 14 }, (_, index) => {
-      const isEmpty = index === 1 || index === 2;
-      return {
-        id: index,
-        cards: isEmpty ? [] : [{ id: `card-${index}-0` }],
-        isDropTarget: ![0, 1, 2].includes(index),
-        isDraggable: index > 0,
-      };
-    })
-  );
+  const [slots, setSlots] = useState(initializeSlots);
 
   const handleDragEnd = useCallback((event) => {
     const { source, target } = event.operation;

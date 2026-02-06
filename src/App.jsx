@@ -46,7 +46,7 @@ function Card({
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef]
+    [draggableRef, droppableRef],
   );
 
   const classNames = [
@@ -59,7 +59,7 @@ function Card({
     .join(" ");
 
   const style = {
-    top: `${slotId > 6 ? cardIndex * 25 : cardIndex * 1}px`,
+    top: `${slotId > 6 ? cardIndex * 25 : cardIndex * 0.5}px`,
     zIndex: cardIndex,
     backgroundImage: `url(${getCardImage(rank, suit, faceUp)})`,
     backgroundSize: "cover",
@@ -176,6 +176,47 @@ function initializeSlots() {
   });
 }
 
+const RANK_ORDER = [
+  "A",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "J",
+  "Q",
+  "K",
+];
+
+function getRankIndex(rank) {
+  return RANK_ORDER.indexOf(rank);
+}
+
+function canDropOnFoundation(foundationCards, cardToDrop) {
+  // If foundation is empty, only Ace can be dropped
+  if (foundationCards.length === 0) {
+    return cardToDrop.rank === "A";
+  }
+
+  // Get the top card of the foundation
+  const topCard = foundationCards[foundationCards.length - 1];
+
+  // Must be same suit
+  if (topCard.suit !== cardToDrop.suit) {
+    return false;
+  }
+
+  // Must be next rank in sequence
+  const topRankIndex = getRankIndex(topCard.rank);
+  const dropRankIndex = getRankIndex(cardToDrop.rank);
+
+  return dropRankIndex === topRankIndex + 1;
+}
+
 function App() {
   const [slots, setSlots] = useState(initializeSlots);
 
@@ -228,13 +269,32 @@ function App() {
       const targetSlot = newSlots[targetSlotId];
 
       // Get cards to move (from the dragged card to the end of the stack)
-      // Cards moved to slots 1, 3-6, or 7-13 should be face up
-      const cardsToMove = sourceSlot.cards
-        .splice(sourceCardIndex)
-        .map((card) => ({ ...card, faceUp: true }));
+      const cardsToMove = sourceSlot.cards.slice(sourceCardIndex);
+
+      // Foundation validation: only one card at a time and must follow rules
+      if (targetIsFoundation) {
+        // Only one card can be moved to foundation at a time
+        if (cardsToMove.length !== 1) {
+          return prevSlots;
+        }
+
+        // Check if the card can be dropped on this foundation
+        if (!canDropOnFoundation(targetSlot.cards, cardsToMove[0])) {
+          return prevSlots;
+        }
+      }
+
+      // Actually remove the cards from source
+      sourceSlot.cards.splice(sourceCardIndex);
+
+      // Cards moved should be face up
+      const cardsToMoveWithFaceUp = cardsToMove.map((card) => ({
+        ...card,
+        faceUp: true,
+      }));
 
       // Add cards to target slot
-      targetSlot.cards.push(...cardsToMove);
+      targetSlot.cards.push(...cardsToMoveWithFaceUp);
 
       // Flip the new topmost card in source slot if it's a tableau slot (7-13)
       if (

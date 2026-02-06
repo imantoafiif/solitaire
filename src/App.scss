@@ -25,6 +25,11 @@
   border-style: dashed;
 }
 
+.card-slot--not-droppable {
+  border: none;
+  background: transparent;
+}
+
 .card-slot--drop-target {
   border-color: #4a90d9;
   border-width: 2px;
@@ -40,7 +45,12 @@
   border: 1px solid #a3a3a3;
   border-radius: 8px;
   background: #fff;
+  cursor: default;
   transition: box-shadow 0.15s ease;
+}
+
+.card--draggable {
+  cursor: grab;
 
   &:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -49,6 +59,7 @@
 
 .card--dragging {
   opacity: 0.5;
+  cursor: grabbing;
 }
 
 .card--drop-target {

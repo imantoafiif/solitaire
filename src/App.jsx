@@ -2,15 +2,19 @@ import { useState, useCallback } from "react";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
 import "./App.scss";
 
-function Card({ id, slotId, cardIndex, stackSize }) {
+function Card({ id, slotId, cardIndex, stackSize, droppable }) {
+  const isTopCard = cardIndex === stackSize - 1;
+
   const { ref: draggableRef, isDragging } = useDraggable({
     id: `card-${id}`,
     data: { cardId: id, slotId, cardIndex },
+    disabled: !isTopCard,
   });
 
   const { ref: droppableRef, isDropTarget } = useDroppable({
     id: `card-drop-${id}`,
     data: { cardId: id, slotId, cardIndex },
+    disabled: !droppable,
   });
 
   const setRefs = useCallback(
@@ -18,11 +22,12 @@ function Card({ id, slotId, cardIndex, stackSize }) {
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef],
+    [draggableRef, droppableRef]
   );
 
   const classNames = [
     "card",
+    isTopCard && "card--draggable",
     isDragging && "card--dragging",
     isDropTarget && "card--drop-target",
   ]
@@ -37,17 +42,19 @@ function Card({ id, slotId, cardIndex, stackSize }) {
   return <div ref={setRefs} className={classNames} style={style} />;
 }
 
-function CardSlot({ id, cards }) {
+function CardSlot({ id, cards, droppable }) {
   const isEmpty = cards.length === 0;
 
   const { ref: droppableRef, isDropTarget } = useDroppable({
     id: `slot-${id}`,
     data: { slotId: id, isSlot: true },
+    disabled: !droppable,
   });
 
   const classNames = [
     "card-slot",
-    isEmpty && "card-slot--empty-droppable",
+    isEmpty && droppable && "card-slot--empty-droppable",
+    !droppable && "card-slot--not-droppable",
     isDropTarget && "card-slot--drop-target",
   ]
     .filter(Boolean)
@@ -62,6 +69,7 @@ function CardSlot({ id, cards }) {
           slotId={id}
           cardIndex={index}
           stackSize={cards.length}
+          droppable={droppable}
         />
       ))}
     </div>
@@ -75,8 +83,10 @@ function App() {
       return {
         id: index,
         cards: isEmpty ? [] : [{ id: `card-${index}-0` }],
+        isDropTarget: ![1, 2].includes(index),
+        isDraggable: [1, 7, 8, 9, 10, 11, 12, 13].includes(index),
       };
-    }),
+    })
   );
 
   const handleDragEnd = useCallback((event) => {
@@ -114,7 +124,12 @@ function App() {
     <DragDropProvider onDragEnd={handleDragEnd}>
       <div className="app-canvas">
         {slots.map((slot) => (
-          <CardSlot key={`slot-${slot.id}`} id={slot.id} cards={slot.cards} />
+          <CardSlot
+            key={`slot-${slot.id}`}
+            id={slot.id}
+            cards={slot.cards}
+            droppable={slot.isDropTarget}
+          />
         ))}
       </div>
     </DragDropProvider>

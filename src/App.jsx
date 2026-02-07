@@ -30,13 +30,19 @@ function Card({
   suit,
   faceUp,
   dragInfo,
+  onCardClick,
 }) {
   const isTopCard = cardIndex === stackSize - 1;
   const isTableauSlot = slotId >= 7 && slotId <= 13;
+  const isWasteSlot = slotId === 1;
 
   // Tableau slots (7-13): any face-up card can be dragged (with cards above)
   // Other slots: only topmost face-up card can be dragged
   const canDrag = draggable && faceUp && (isTableauSlot || isTopCard);
+
+  // Can click to auto-move: topmost face-up cards in tableau (7-13) or waste (1)
+  const canAutoMove =
+    faceUp && isTopCard && (isTableauSlot || isWasteSlot) && onCardClick;
 
   const { ref: draggableRef, isDragging } = useDraggable({
     id: `card-${id}`,
@@ -55,7 +61,17 @@ function Card({
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef]
+    [draggableRef, droppableRef],
+  );
+
+  const handleClick = useCallback(
+    (e) => {
+      if (canAutoMove) {
+        e.stopPropagation();
+        onCardClick(slotId, cardIndex);
+      }
+    },
+    [canAutoMove, onCardClick, slotId, cardIndex],
   );
 
   // Check if this card is part of a dragged stack
@@ -67,6 +83,7 @@ function Card({
     canDrag && "card--draggable",
     (isDragging || isBeingDraggedAlong) && "card--dragging",
     isDropTarget && "card--drop-target",
+    canAutoMove && "card--clickable",
   ]
     .filter(Boolean)
     .join(" ");
@@ -78,10 +95,25 @@ function Card({
     backgroundSize: "cover",
   };
 
-  return <div ref={setRefs} className={classNames} style={style} />;
+  return (
+    <div
+      ref={setRefs}
+      className={classNames}
+      style={style}
+      onClick={handleClick}
+    />
+  );
 }
 
-function CardSlot({ id, cards, droppable, draggable, onClick, dragInfo }) {
+function CardSlot({
+  id,
+  cards,
+  droppable,
+  draggable,
+  onClick,
+  onCardClick,
+  dragInfo,
+}) {
   const isEmpty = cards.length === 0;
   const isStockSlot = id === 0;
 
@@ -116,6 +148,7 @@ function CardSlot({ id, cards, droppable, draggable, onClick, dragInfo }) {
           suit={card.suit}
           faceUp={card.faceUp}
           dragInfo={dragInfo}
+          onCardClick={onCardClick}
         />
       ))}
     </div>
@@ -273,7 +306,7 @@ function DraggedCardStack({ cards }) {
             backgroundImage: `url(${getCardImage(
               card.rank,
               card.suit,
-              card.faceUp
+              card.faceUp,
             )})`,
             backgroundSize: "cover",
           }}
@@ -287,6 +320,33 @@ function checkWinCondition(slots) {
   // Win when all 4 foundation slots (3-6) have 13 cards each (full suit)
   const foundationSlots = [3, 4, 5, 6];
   return foundationSlots.every((slotId) => slots[slotId].cards.length === 13);
+}
+
+function findAutoMoveTarget(slots, sourceSlotId, cardIndex) {
+  const sourceSlot = slots[sourceSlotId];
+  const cardsToMove = sourceSlot.cards.slice(cardIndex);
+  const cardToMove = cardsToMove[0];
+
+  if (!cardToMove || !cardToMove.faceUp) return null;
+
+  // Priority 1: Try foundation slots (3-6) - only if moving single card
+  if (cardsToMove.length === 1) {
+    for (const foundationId of [3, 4, 5, 6]) {
+      if (canDropOnFoundation(slots[foundationId].cards, cardToMove)) {
+        return foundationId;
+      }
+    }
+  }
+
+  // Priority 2: Try tableau slots (7-13)
+  for (const tableauId of [7, 8, 9, 10, 11, 12, 13]) {
+    if (tableauId === sourceSlotId) continue;
+    if (canDropOnTableau(slots[tableauId].cards, cardToMove)) {
+      return tableauId;
+    }
+  }
+
+  return null;
 }
 
 function App() {
@@ -325,7 +385,43 @@ function App() {
         });
       }
     },
-    [slots]
+    [slots],
+  );
+
+  const handleCardClick = useCallback(
+    (slotId, cardIndex) => {
+      const targetSlotId = findAutoMoveTarget(slots, slotId, cardIndex);
+      if (targetSlotId === null) return;
+
+      setSlots((prevSlots) => {
+        const newSlots = prevSlots.map((slot) => ({
+          ...slot,
+          cards: slot.cards.map((card) => ({ ...card })),
+        }));
+
+        const sourceSlot = newSlots[slotId];
+        const targetSlot = newSlots[targetSlotId];
+
+        // Get cards to move
+        const cardsToMove = sourceSlot.cards
+          .splice(cardIndex)
+          .map((card) => ({ ...card, faceUp: true }));
+
+        // Add cards to target
+        targetSlot.cards.push(...cardsToMove);
+
+        // Flip new topmost card in source if tableau
+        if (slotId >= 7 && slotId <= 13 && sourceSlot.cards.length > 0) {
+          const topCard = sourceSlot.cards[sourceSlot.cards.length - 1];
+          if (!topCard.faceUp) {
+            topCard.faceUp = true;
+          }
+        }
+
+        return newSlots;
+      });
+    },
+    [slots],
   );
 
   const handleDrawCard = useCallback(() => {
@@ -468,6 +564,7 @@ function App() {
             droppable={!hasWon && slot.isDropTarget}
             draggable={!hasWon && slot.isDraggable}
             onClick={!hasWon && slot.id === 0 ? handleDrawCard : undefined}
+            onCardClick={!hasWon ? handleCardClick : undefined}
             dragInfo={dragInfo}
           />
         ))}

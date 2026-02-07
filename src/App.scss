@@ -72,6 +72,10 @@
   box-shadow: 0 0 12px rgba(74, 144, 217, 0.4);
 }
 
+.card--clickable {
+  cursor: pointer;
+}
+
 .dragged-stack {
   position: relative;
   width: 80px;

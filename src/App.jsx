@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   DragDropProvider,
   useDraggable,
@@ -278,9 +278,26 @@ function DraggedCardStack({ cards }) {
   );
 }
 
+function checkWinCondition(slots) {
+  // Win when all 4 foundation slots (3-6) have 13 cards each (full suit)
+  const foundationSlots = [3, 4, 5, 6];
+  return foundationSlots.every((slotId) => slots[slotId].cards.length === 13);
+}
+
 function App() {
   const [slots, setSlots] = useState(initializeSlots);
   const [dragInfo, setDragInfo] = useState(null);
+  const [hasWon, setHasWon] = useState(false);
+
+  // Check win condition whenever slots change
+  useEffect(() => {
+    if (!hasWon && checkWinCondition(slots)) {
+      setHasWon(true);
+      setTimeout(() => {
+        alert("You Win!");
+      }, 100);
+    }
+  }, [slots, hasWon]);
 
   const handleDragStart = useCallback(
     (event) => {
@@ -412,9 +429,9 @@ function App() {
             key={`slot-${slot.id}`}
             id={slot.id}
             cards={slot.cards}
-            droppable={slot.isDropTarget}
-            draggable={slot.isDraggable}
-            onClick={slot.id === 0 ? handleDrawCard : undefined}
+            droppable={!hasWon && slot.isDropTarget}
+            draggable={!hasWon && slot.isDraggable}
+            onClick={!hasWon && slot.id === 0 ? handleDrawCard : undefined}
             dragInfo={dragInfo}
           />
         ))}

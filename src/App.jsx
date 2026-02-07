@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   DragDropProvider,
   useDraggable,
@@ -31,6 +31,7 @@ function Card({
   faceUp,
   dragInfo,
   onCardClick,
+  isAnimating,
 }) {
   const isTopCard = cardIndex === stackSize - 1;
   const isTableauSlot = slotId >= 7 && slotId <= 13;
@@ -81,7 +82,7 @@ function Card({
   const classNames = [
     "card",
     canDrag && "card--draggable",
-    (isDragging || isBeingDraggedAlong) && "card--dragging",
+    (isDragging || isBeingDraggedAlong || isAnimating) && "card--dragging",
     isDropTarget && "card--drop-target",
     canAutoMove && "card--clickable",
   ]
@@ -113,6 +114,9 @@ function CardSlot({
   onClick,
   onCardClick,
   dragInfo,
+  animatingFromSlot,
+  animatingCardIndex,
+  slotRef,
 }) {
   const isEmpty = cards.length === 0;
   const isStockSlot = id === 0;
@@ -122,6 +126,16 @@ function CardSlot({
     data: { slotId: id, isSlot: true },
     disabled: !droppable,
   });
+
+  const setRefs = useCallback(
+    (node) => {
+      droppableRef(node);
+      if (slotRef) {
+        slotRef(node);
+      }
+    },
+    [droppableRef, slotRef],
+  );
 
   const classNames = [
     "card-slot",
@@ -133,24 +147,31 @@ function CardSlot({
     .filter(Boolean)
     .join(" ");
 
+  // Check if cards should be hidden due to animation
+  const isAnimatingFrom = animatingFromSlot === id;
+
   return (
-    <div ref={droppableRef} className={classNames} onClick={onClick}>
-      {cards.map((card, index) => (
-        <Card
-          key={card.id}
-          id={card.id}
-          slotId={id}
-          cardIndex={index}
-          stackSize={cards.length}
-          droppable={droppable}
-          draggable={draggable}
-          rank={card.rank}
-          suit={card.suit}
-          faceUp={card.faceUp}
-          dragInfo={dragInfo}
-          onCardClick={onCardClick}
-        />
-      ))}
+    <div ref={setRefs} className={classNames} onClick={onClick}>
+      {cards.map((card, index) => {
+        const isAnimating = isAnimatingFrom && index >= animatingCardIndex;
+        return (
+          <Card
+            key={card.id}
+            id={card.id}
+            slotId={id}
+            cardIndex={index}
+            stackSize={cards.length}
+            droppable={droppable}
+            draggable={draggable}
+            rank={card.rank}
+            suit={card.suit}
+            faceUp={card.faceUp}
+            dragInfo={dragInfo}
+            onCardClick={onCardClick}
+            isAnimating={isAnimating}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -316,6 +337,75 @@ function DraggedCardStack({ cards }) {
   );
 }
 
+function AnimatedCards({
+  cards,
+  startPos,
+  endPos,
+  sourceCardIndex,
+  targetCardCount,
+  targetSlotId,
+  onAnimationEnd,
+}) {
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    // Start animation after mount
+    requestAnimationFrame(() => {
+      setIsAnimating(true);
+    });
+  }, []);
+
+  const handleTransitionEnd = () => {
+    onAnimationEnd();
+  };
+
+  // Calculate target position offset for stacking
+  const isTableauTarget = targetSlotId >= 7 && targetSlotId <= 13;
+  const targetOffset = isTableauTarget
+    ? targetCardCount * 25
+    : targetCardCount * 0.5;
+
+  return (
+    <div
+      className="animated-cards"
+      style={{
+        left: startPos.x,
+        top: startPos.y,
+        transform: isAnimating
+          ? `translate(${endPos.x - startPos.x}px, ${endPos.y - startPos.y + targetOffset}px)`
+          : "translate(0, 0)",
+      }}
+      onTransitionEnd={handleTransitionEnd}
+    >
+      {cards.map((card, index) => {
+        const isTableauSource =
+          startPos.slotId !== undefined &&
+          startPos.slotId >= 7 &&
+          startPos.slotId <= 13;
+        const cardOffset = isTableauSource
+          ? (sourceCardIndex + index) * 25
+          : (sourceCardIndex + index) * 0.5;
+
+        return (
+          <div
+            key={card.id}
+            className="card"
+            style={{
+              position: "absolute",
+              top: `${index * 25}px`,
+              left: 0,
+              zIndex: 1000 + index,
+              backgroundImage: `url(${getCardImage(card.rank, card.suit, card.faceUp)})`,
+              backgroundSize: "cover",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function checkWinCondition(slots) {
   // Win when all 4 foundation slots (3-6) have 13 cards each (full suit)
   const foundationSlots = [3, 4, 5, 6];
@@ -353,6 +443,8 @@ function App() {
   const [slots, setSlots] = useState(initializeSlots);
   const [dragInfo, setDragInfo] = useState(null);
   const [hasWon, setHasWon] = useState(false);
+  const [animationState, setAnimationState] = useState(null);
+  const slotRefs = useRef({});
 
   // Check win condition whenever slots change
   useEffect(() => {
@@ -390,39 +482,95 @@ function App() {
 
   const handleCardClick = useCallback(
     (slotId, cardIndex) => {
+      if (animationState) return; // Don't allow clicks during animation
+
       const targetSlotId = findAutoMoveTarget(slots, slotId, cardIndex);
       if (targetSlotId === null) return;
 
-      setSlots((prevSlots) => {
-        const newSlots = prevSlots.map((slot) => ({
-          ...slot,
-          cards: slot.cards.map((card) => ({ ...card })),
-        }));
+      const sourceSlot = slots[slotId];
+      const cardsToMove = sourceSlot.cards.slice(cardIndex);
 
-        const sourceSlot = newSlots[slotId];
-        const targetSlot = newSlots[targetSlotId];
+      // Get positions from refs
+      const sourceRef = slotRefs.current[slotId];
+      const targetRef = slotRefs.current[targetSlotId];
 
-        // Get cards to move
-        const cardsToMove = sourceSlot.cards
-          .splice(cardIndex)
-          .map((card) => ({ ...card, faceUp: true }));
+      if (!sourceRef || !targetRef) {
+        // Fallback: no animation, just move
+        performMove(slotId, cardIndex, targetSlotId);
+        return;
+      }
 
-        // Add cards to target
-        targetSlot.cards.push(...cardsToMove);
+      const sourceRect = sourceRef.getBoundingClientRect();
+      const targetRect = targetRef.getBoundingClientRect();
 
-        // Flip new topmost card in source if tableau
-        if (slotId >= 7 && slotId <= 13 && sourceSlot.cards.length > 0) {
-          const topCard = sourceSlot.cards[sourceSlot.cards.length - 1];
-          if (!topCard.faceUp) {
-            topCard.faceUp = true;
-          }
-        }
+      // Calculate starting position (include card offset within slot)
+      const isTableauSource = slotId >= 7 && slotId <= 13;
+      const cardOffset = isTableauSource ? cardIndex * 25 : cardIndex * 0.5;
 
-        return newSlots;
+      setAnimationState({
+        sourceSlotId: slotId,
+        sourceCardIndex: cardIndex,
+        targetSlotId,
+        targetCardCount: slots[targetSlotId].cards.length,
+        cards: cardsToMove,
+        startPos: {
+          x: sourceRect.left,
+          y: sourceRect.top + cardOffset,
+          slotId,
+        },
+        endPos: {
+          x: targetRect.left,
+          y: targetRect.top,
+        },
       });
     },
-    [slots],
+    [slots, animationState],
   );
+
+  const performMove = useCallback((sourceSlotId, cardIndex, targetSlotId) => {
+    setSlots((prevSlots) => {
+      const newSlots = prevSlots.map((slot) => ({
+        ...slot,
+        cards: slot.cards.map((card) => ({ ...card })),
+      }));
+
+      const sourceSlot = newSlots[sourceSlotId];
+      const targetSlot = newSlots[targetSlotId];
+
+      // Get cards to move
+      const cardsToMove = sourceSlot.cards
+        .splice(cardIndex)
+        .map((card) => ({ ...card, faceUp: true }));
+
+      // Add cards to target
+      targetSlot.cards.push(...cardsToMove);
+
+      // Flip new topmost card in source if tableau
+      if (
+        sourceSlotId >= 7 &&
+        sourceSlotId <= 13 &&
+        sourceSlot.cards.length > 0
+      ) {
+        const topCard = sourceSlot.cards[sourceSlot.cards.length - 1];
+        if (!topCard.faceUp) {
+          topCard.faceUp = true;
+        }
+      }
+
+      return newSlots;
+    });
+  }, []);
+
+  const handleAnimationEnd = useCallback(() => {
+    if (animationState) {
+      performMove(
+        animationState.sourceSlotId,
+        animationState.sourceCardIndex,
+        animationState.targetSlotId,
+      );
+      setAnimationState(null);
+    }
+  }, [animationState, performMove]);
 
   const handleDrawCard = useCallback(() => {
     setSlots((prevSlots) => {
@@ -566,6 +714,11 @@ function App() {
             onClick={!hasWon && slot.id === 0 ? handleDrawCard : undefined}
             onCardClick={!hasWon ? handleCardClick : undefined}
             dragInfo={dragInfo}
+            animatingFromSlot={animationState?.sourceSlotId}
+            animatingCardIndex={animationState?.sourceCardIndex}
+            slotRef={(node) => {
+              slotRefs.current[slot.id] = node;
+            }}
           />
         ))}
       </div>
@@ -574,6 +727,17 @@ function App() {
           <DraggedCardStack cards={dragInfo.cards} />
         )}
       </DragOverlay>
+      {animationState && (
+        <AnimatedCards
+          cards={animationState.cards}
+          startPos={animationState.startPos}
+          endPos={animationState.endPos}
+          sourceCardIndex={animationState.sourceCardIndex}
+          targetCardCount={animationState.targetCardCount}
+          targetSlotId={animationState.targetSlotId}
+          onAnimationEnd={handleAnimationEnd}
+        />
+      )}
     </DragDropProvider>
   );
 }

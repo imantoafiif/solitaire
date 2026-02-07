@@ -55,7 +55,7 @@ function Card({
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef],
+    [draggableRef, droppableRef]
   );
 
   // Check if this card is part of a dragged stack
@@ -83,6 +83,7 @@ function Card({
 
 function CardSlot({ id, cards, droppable, draggable, onClick, dragInfo }) {
   const isEmpty = cards.length === 0;
+  const isStockSlot = id === 0;
 
   const { ref: droppableRef, isDropTarget } = useDroppable({
     id: `slot-${id}`,
@@ -92,8 +93,8 @@ function CardSlot({ id, cards, droppable, draggable, onClick, dragInfo }) {
 
   const classNames = [
     "card-slot",
-    isEmpty && droppable && "card-slot--empty-droppable",
-    !droppable && "card-slot--not-droppable",
+    isEmpty && (droppable || isStockSlot) && "card-slot--empty-droppable",
+    !droppable && !isStockSlot && "card-slot--not-droppable",
     isDropTarget && "card-slot--drop-target",
     onClick && "card-slot--clickable",
   ]
@@ -269,7 +270,11 @@ function DraggedCardStack({ cards }) {
             position: "absolute",
             top: `${index * 25}px`,
             zIndex: index,
-            backgroundImage: `url(${getCardImage(card.rank, card.suit, card.faceUp)})`,
+            backgroundImage: `url(${getCardImage(
+              card.rank,
+              card.suit,
+              card.faceUp
+            )})`,
             backgroundSize: "cover",
           }}
         />
@@ -299,6 +304,11 @@ function App() {
     }
   }, [slots, hasWon]);
 
+  // useEffect(() => {
+  //   const audio = new Audio("/audio/tada.mp3");
+  //   audio.play();
+  // }, []);
+
   const handleDragStart = useCallback(
     (event) => {
       const { source } = event.operation;
@@ -315,18 +325,44 @@ function App() {
         });
       }
     },
-    [slots],
+    [slots]
   );
 
   const handleDrawCard = useCallback(() => {
     setSlots((prevSlots) => {
       const stockSlot = prevSlots[0];
-      if (stockSlot.cards.length === 0) return prevSlots;
+      const wasteSlot = prevSlots[1];
 
       const newSlots = prevSlots.map((slot) => ({
         ...slot,
         cards: [...slot.cards],
       }));
+
+      // If stock is empty, reshuffle waste pile back to stock
+      if (stockSlot.cards.length === 0) {
+        if (wasteSlot.cards.length === 0) return prevSlots;
+
+        // Get all cards from waste pile and shuffle them
+        const cardsToShuffle = newSlots[1].cards.map((card) => ({
+          ...card,
+          faceUp: false,
+        }));
+
+        // Shuffle the cards
+        for (let i = cardsToShuffle.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [cardsToShuffle[i], cardsToShuffle[j]] = [
+            cardsToShuffle[j],
+            cardsToShuffle[i],
+          ];
+        }
+
+        // Move shuffled cards to stock, clear waste
+        newSlots[0].cards = cardsToShuffle;
+        newSlots[1].cards = [];
+
+        return newSlots;
+      }
 
       // Take the top card from slot 0 and flip it face up
       const cardToMove = { ...newSlots[0].cards.pop(), faceUp: true };

@@ -1,5 +1,10 @@
 import { useState, useCallback } from "react";
-import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
+import {
+  DragDropProvider,
+  useDraggable,
+  useDroppable,
+  DragOverlay,
+} from "@dnd-kit/react";
 import "./App.scss";
 
 const SUIT_MAP = { hearts: "h", diamonds: "d", clubs: "c", spades: "s" };
@@ -24,10 +29,14 @@ function Card({
   rank,
   suit,
   faceUp,
+  dragInfo,
 }) {
   const isTopCard = cardIndex === stackSize - 1;
-  // Only face up cards that are on top can be dragged
-  const canDrag = isTopCard && draggable && faceUp;
+  const isTableauSlot = slotId >= 7 && slotId <= 13;
+
+  // Tableau slots (7-13): any face-up card can be dragged (with cards above)
+  // Other slots: only topmost face-up card can be dragged
+  const canDrag = draggable && faceUp && (isTableauSlot || isTopCard);
 
   const { ref: draggableRef, isDragging } = useDraggable({
     id: `card-${id}`,
@@ -46,13 +55,17 @@ function Card({
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef]
+    [draggableRef, droppableRef],
   );
+
+  // Check if this card is part of a dragged stack
+  const isBeingDraggedAlong =
+    dragInfo && dragInfo.slotId === slotId && cardIndex >= dragInfo.cardIndex;
 
   const classNames = [
     "card",
     canDrag && "card--draggable",
-    isDragging && "card--dragging",
+    (isDragging || isBeingDraggedAlong) && "card--dragging",
     isDropTarget && "card--drop-target",
   ]
     .filter(Boolean)
@@ -68,7 +81,7 @@ function Card({
   return <div ref={setRefs} className={classNames} style={style} />;
 }
 
-function CardSlot({ id, cards, droppable, draggable, onClick }) {
+function CardSlot({ id, cards, droppable, draggable, onClick, dragInfo }) {
   const isEmpty = cards.length === 0;
 
   const { ref: droppableRef, isDropTarget } = useDroppable({
@@ -101,6 +114,7 @@ function CardSlot({ id, cards, droppable, draggable, onClick }) {
           rank={card.rank}
           suit={card.suit}
           faceUp={card.faceUp}
+          dragInfo={dragInfo}
         />
       ))}
     </div>
@@ -244,8 +258,48 @@ function canDropOnFoundation(foundationCards, cardToDrop) {
   return dropRankIndex === topRankIndex + 1;
 }
 
+function DraggedCardStack({ cards }) {
+  return (
+    <div className="dragged-stack">
+      {cards.map((card, index) => (
+        <div
+          key={card.id}
+          className="card"
+          style={{
+            position: "absolute",
+            top: `${index * 25}px`,
+            zIndex: index,
+            backgroundImage: `url(${getCardImage(card.rank, card.suit, card.faceUp)})`,
+            backgroundSize: "cover",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [slots, setSlots] = useState(initializeSlots);
+  const [dragInfo, setDragInfo] = useState(null);
+
+  const handleDragStart = useCallback(
+    (event) => {
+      const { source } = event.operation;
+      if (source) {
+        const slotId = source.data?.slotId;
+        const cardIndex = source.data?.cardIndex;
+        const slot = slots[slotId];
+        const draggedCards = slot?.cards.slice(cardIndex) || [];
+
+        setDragInfo({
+          slotId,
+          cardIndex,
+          cards: draggedCards,
+        });
+      }
+    },
+    [slots],
+  );
 
   const handleDrawCard = useCallback(() => {
     setSlots((prevSlots) => {
@@ -268,6 +322,9 @@ function App() {
   }, []);
 
   const handleDragEnd = useCallback((event) => {
+    // Clear drag info when drag ends
+    setDragInfo(null);
+
     const { source, target } = event.operation;
 
     if (!source || !target) return;
@@ -348,7 +405,7 @@ function App() {
   }, []);
 
   return (
-    <DragDropProvider onDragEnd={handleDragEnd}>
+    <DragDropProvider onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="app-canvas">
         {slots.map((slot) => (
           <CardSlot
@@ -358,9 +415,15 @@ function App() {
             droppable={slot.isDropTarget}
             draggable={slot.isDraggable}
             onClick={slot.id === 0 ? handleDrawCard : undefined}
+            dragInfo={dragInfo}
           />
         ))}
       </div>
+      <DragOverlay>
+        {dragInfo?.cards && dragInfo.cards.length > 0 && (
+          <DraggedCardStack cards={dragInfo.cards} />
+        )}
+      </DragOverlay>
     </DragDropProvider>
   );
 }

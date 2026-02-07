@@ -72,3 +72,15 @@
   border-width: 2px;
   box-shadow: 0 0 12px rgba(74, 144, 217, 0.4);
 }
+
+.dragged-stack {
+  position: relative;
+  width: 80px;
+  height: 123px;
+  pointer-events: none;
+
+  .card {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    opacity: 1;
+  }
+}

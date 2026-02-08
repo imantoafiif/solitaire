@@ -62,7 +62,7 @@ function Card({
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef],
+    [draggableRef, droppableRef]
   );
 
   const handleClick = useCallback(
@@ -72,7 +72,7 @@ function Card({
         onCardClick(slotId, cardIndex);
       }
     },
-    [canAutoMove, onCardClick, slotId, cardIndex],
+    [canAutoMove, onCardClick, slotId, cardIndex]
   );
 
   // Check if this card is part of a dragged stack
@@ -134,7 +134,7 @@ function CardSlot({
         slotRef(node);
       }
     },
-    [droppableRef, slotRef],
+    [droppableRef, slotRef]
   );
 
   const classNames = [
@@ -327,7 +327,7 @@ function DraggedCardStack({ cards }) {
             backgroundImage: `url(${getCardImage(
               card.rank,
               card.suit,
-              card.faceUp,
+              card.faceUp
             )})`,
             backgroundSize: "cover",
           }}
@@ -372,7 +372,9 @@ function AnimatedCards({
         left: startPos.x,
         top: startPos.y,
         transform: isAnimating
-          ? `translate(${endPos.x - startPos.x}px, ${endPos.y - startPos.y + targetOffset}px)`
+          ? `translate(${endPos.x - startPos.x}px, ${
+              endPos.y - startPos.y + targetOffset
+            }px)`
           : "translate(0, 0)",
       }}
       onTransitionEnd={handleTransitionEnd}
@@ -395,7 +397,11 @@ function AnimatedCards({
               top: `${index * 25}px`,
               left: 0,
               zIndex: 1000 + index,
-              backgroundImage: `url(${getCardImage(card.rank, card.suit, card.faceUp)})`,
+              backgroundImage: `url(${getCardImage(
+                card.rank,
+                card.suit,
+                card.faceUp
+              )})`,
               backgroundSize: "cover",
               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
             }}
@@ -445,21 +451,18 @@ function App() {
   const [hasWon, setHasWon] = useState(false);
   const [animationState, setAnimationState] = useState(null);
   const slotRefs = useRef({});
+  const audio = new Audio("/audio/tada.mp3");
 
   // Check win condition whenever slots change
   useEffect(() => {
     if (!hasWon && checkWinCondition(slots)) {
       setHasWon(true);
       setTimeout(() => {
+        audio.play();
         alert("You Win!");
       }, 100);
     }
   }, [slots, hasWon]);
-
-  // useEffect(() => {
-  //   const audio = new Audio("/audio/tada.mp3");
-  //   audio.play();
-  // }, []);
 
   const handleDragStart = useCallback(
     (event) => {
@@ -477,7 +480,7 @@ function App() {
         });
       }
     },
-    [slots],
+    [slots]
   );
 
   const handleCardClick = useCallback(
@@ -524,7 +527,7 @@ function App() {
         },
       });
     },
-    [slots, animationState],
+    [slots, animationState]
   );
 
   const performMove = useCallback((sourceSlotId, cardIndex, targetSlotId) => {
@@ -566,7 +569,7 @@ function App() {
       performMove(
         animationState.sourceSlotId,
         animationState.sourceCardIndex,
-        animationState.targetSlotId,
+        animationState.targetSlotId
       );
       setAnimationState(null);
     }

@@ -62,7 +62,7 @@ function Card({
       draggableRef(node);
       droppableRef(node);
     },
-    [draggableRef, droppableRef]
+    [draggableRef, droppableRef],
   );
 
   const handleClick = useCallback(
@@ -72,7 +72,7 @@ function Card({
         onCardClick(slotId, cardIndex);
       }
     },
-    [canAutoMove, onCardClick, slotId, cardIndex]
+    [canAutoMove, onCardClick, slotId, cardIndex],
   );
 
   // Check if this card is part of a dragged stack
@@ -134,12 +134,15 @@ function CardSlot({
         slotRef(node);
       }
     },
-    [droppableRef, slotRef]
+    [droppableRef, slotRef],
   );
 
   const classNames = [
     "card-slot",
-    isEmpty && (droppable || isStockSlot) && "card-slot--empty-droppable",
+    isEmpty &&
+      (droppable || isStockSlot) &&
+      id < 7 &&
+      "card-slot--empty-droppable",
     !droppable && !isStockSlot && "card-slot--not-droppable",
     isDropTarget && "card-slot--drop-target",
     onClick && "card-slot--clickable",
@@ -327,7 +330,7 @@ function DraggedCardStack({ cards }) {
             backgroundImage: `url(${getCardImage(
               card.rank,
               card.suit,
-              card.faceUp
+              card.faceUp,
             )})`,
             backgroundSize: "cover",
           }}
@@ -400,7 +403,7 @@ function AnimatedCards({
               backgroundImage: `url(${getCardImage(
                 card.rank,
                 card.suit,
-                card.faceUp
+                card.faceUp,
               )})`,
               backgroundSize: "cover",
               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
@@ -480,7 +483,7 @@ function App() {
         });
       }
     },
-    [slots]
+    [slots],
   );
 
   const handleCardClick = useCallback(
@@ -527,7 +530,7 @@ function App() {
         },
       });
     },
-    [slots, animationState]
+    [slots, animationState],
   );
 
   const performMove = useCallback((sourceSlotId, cardIndex, targetSlotId) => {
@@ -569,7 +572,7 @@ function App() {
       performMove(
         animationState.sourceSlotId,
         animationState.sourceCardIndex,
-        animationState.targetSlotId
+        animationState.targetSlotId,
       );
       setAnimationState(null);
     }

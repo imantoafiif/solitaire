@@ -15,13 +15,14 @@
   position: relative;
   width: 80px;
   height: 123px;
-  border: 1px dashed #d0d0d0;
+  // border: 1px dashed #d0d0d0;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.02);
 }
 
 .card-slot--empty-droppable {
   border-style: dashed;
+  border-color: #d0d0d0;
 }
 
 .card-slot--not-droppable {
@@ -37,8 +38,6 @@
 }
 
 .card-slot--clickable {
-  cursor: pointer;
-
   .card {
     pointer-events: none;
   }
@@ -73,7 +72,6 @@
 }
 
 .card--clickable {
-  cursor: pointer;
 }
 
 .dragged-stack {
